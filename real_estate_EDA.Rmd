@@ -1,0 +1,669 @@
+---
+title: "Exploratory Data Analysis of Texas Real Estate Market"
+author: "Luigi Carlucci"
+date: "2025-02-28"
+output:
+  pdf_document: default
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, dpi=180, fig.width = 10, fig.height = 6)
+```
+
+First, the `dplyr` library is imported and the *realestate_texas.csv* dataset is loaded.
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+texas_data = read.csv("realestate_texas.csv")
+attach(texas_data)
+```
+
+```{r}
+head(texas_data)
+```
+
+## 1. Analysis of variables
+
+The dataset contains the following variables:
+
+-   `city`: categorical variable; contains the name of the reference city; can be used to perform comparative analyses between different cities
+
+-   `year`: discrete numeric variable; represents a temporal dimension, specifically the reference year; can be used to perform trend analysis over time
+
+-   `month`: discrete numeric variable; represents a time dimension, specifically the reference month for each year; can be used to perform comparative analyses between different months
+
+-   `sales`: discrete numeric variable; reports the total number of property sales for each city, year, and month; it is possible to perform analyses with position, variability, and shape indices, divide the variable into classes and create a frequency distribution, and perform conditional analyses by other variables
+
+-   `volume`: continuous numeric variable; reports the total value of real estate sales (in millions of dollars) for each city, year, and month; it is possible to perform analyses with position, variability, and shape indices, divide the variable into classes and create a frequency distribution, and perform conditional analyses by other variables
+
+-   `median_price`: continuous numeric variable; reports the median sale price of real estate (in dollars) for each city, year, and month; it is possible to perform analyses with position, variability, and shape indices, divide the variable into classes and create a frequency distribution, and perform conditional analyses by other variables
+
+-   `listings`: discrete numeric variable; reports the total number of active listings for each city, year, and month; it is possible to perform analyses with position, variability, and shape indices, divide the variable into classes and create a frequency distribution, and perform conditional analyses by other variables
+
+-   `months_inventory`: continuous numeric variable; reports the time needed (in months) to sell all current listings for each city, year, and month; it is possible to perform analyses with position, variability, and shape indices, divide the variable into classes and create a frequency distribution, and perform conditional analyses by other variables
+
+## 2. Indices of location, variability, and distribution
+
+For numeric variables (excluding those representing a temporal dimension), the following can be calculated:
+
+-   **Indices of location**: minimum, maximum, median, first and third quartiles, mean
+
+-   **Indices of variability**: range, interquartile range, variance, standard deviation, coefficient of variation
+
+-   **Indices of distribution**: skewness and kurtosis
+
+```{r}
+# Import library for skewness e kurtosis
+library(moments)
+```
+
+```{r}
+# Create a function to calculate indices
+
+calculate_indices = function(x) {
+  c(
+    Min = min(x),
+    Max = max(x),
+    Median = median(x),
+    First_Quartile = unname(quantile(texas_data$sales, 0.25)),
+    Third_Quartile = unname(quantile(texas_data$sales, 0.75)),
+    Mean = mean(x),
+    Range = max(x) - min(x),
+    Interquartile_Range = IQR(x),
+    Variance = var(x),
+    Standard_Deviation = sd(x),
+    Coeff_Variation = sd(x)/mean(x) * 100,
+    Skewness  = skewness(x),
+    Kurtosis = kurtosis(x)
+  )
+}
+```
+
+As an example, the indices for the `sales` variable are first calculated:
+
+```{r}
+# Apply function and round results to two decimals
+sales_indices = round(calculate_indices(sales),2)
+```
+
+```{r}
+# Transform to data frame for a better visualization
+sales_indices_df = as.data.frame(sales_indices)
+sales_indices_df
+```
+
+Next, the indices are calculated for all appropriate variables:
+
+```{r}
+# Select variables from the original dataset
+variables_subs = texas_data %>% select(sales, volume, median_price, listings, months_inventory)
+```
+
+```{r}
+# Apply function to all selected variables and round results
+indices_vars = round(sapply(variables_subs, calculate_indices),2)
+```
+
+```{r}
+# Transform to data frame and visualize
+indices_vars_df = as.data.frame(indices_vars)
+indices_vars_df
+```
+
+```{r}
+write.csv(indices_vars_df, file='indices_stats.csv')
+```
+
+At first glance, there are many differences between the different variables in terms of distribution, which will be analyzed and discussed in more detail in the following sections.
+
+For `city`, `year` and `month` variables a frequency distribution is created:
+
+```{r}
+N=dim(texas_data)[1]
+
+# Frequency distribution of "city" variable
+city_freq_abs = table(city)
+city_freq_rel = table(city)/N
+city_freq = as.data.frame(cbind(city = rownames(city_freq_abs), city_freq_abs, city_freq_rel), row.names = FALSE)
+print(city_freq)
+
+# Frequency distribution of "year" variable
+year_freq_abs = table(year)
+year_freq_rel = table(year)/N
+year_freq = as.data.frame(cbind(year = rownames(year_freq_abs), year_freq_abs, year_freq_rel), row.names = FALSE)
+print(year_freq)
+
+# Frequency distribution of "month" variable
+month_freq_abs = table(month)
+month_freq_rel = table(month)/N
+month_freq = as.data.frame(cbind(month = rownames(month_freq_abs), month_freq_abs, month_freq_rel), row.names = FALSE)
+print(month_freq)
+```
+
+It is clear that all three variables have the same frequencies for each value. Specifically, each city has the same number (n=60) of data points, distributed equally for each year and month.
+
+## 3. Identification of variables with higher variability and asymmetry
+
+The following is now determined:
+
+-   which variable has the highest variability, by evaluating the **coefficient of variation (CV)**
+
+-   which variable has the most skewed distribution, by evaluating the value of **skewness**
+
+```{r}
+# Identify the variable with highest variability (highest CV)
+var_max_cv = colnames(indices_vars_df)[which.max(indices_vars_df["Coeff_Variation",])]
+cv_max_value = max(indices_vars_df["Coeff_Variation",])
+var_max_cv
+cv_max_value
+```
+
+In this case, the `volume` variable has the highest value (53.71) of the **coefficient of variation (CV)**, which measures the relative dispersion with respect to the mean, and is therefore the variable with the greatest variability among all those present in the dataset.
+
+```{r}
+# Identify the most skewed variable (highest absolute value of skewness)
+var_max_skewness = colnames(indices_vars_df)[which.max(abs(indices_vars_df["Skewness",]))]
+skew_max_value = max(abs(indices_vars_df["Skewness",]))
+var_max_skewness
+skew_max_value
+```
+
+In this case, the `volume` variable has the highest value (0.88) of **skewness** in absolute terms and is therefore the variable with the most skewed distribution among all those present in the dataset.
+
+```{r}
+# Identify the original value of skewness for the "volume" variable
+indices_vars_df["Skewness",]$volume
+```
+
+In particular, since the value of the skewness index is positive, the `volume` variable has a positively skewed distribution, i.e., with a rightward tail, as can also be seen from a density plot.
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(texas_data)+
+  geom_density(aes(x=volume), col="black", fill="steelblue") +
+  labs(title = "Sales volume density",
+       x = "Sales volume (million $)", y = "Density")
+```
+
+## 4. Creation of classes for a numeric variable
+
+Here, the numeric variable `median_price` is divided into 10 classes.
+
+```{r}
+# Split the "median_price" variable into classes
+median_price_cl = cut(texas_data$median_price, breaks = 10, dig.lab=10)
+```
+
+Next, frequency distributions are created, including absolute frequency, relative frequency, cumulative absolute frequency, and cumulative relative frequency.
+
+```{r}
+# Create frequency distributions
+N=dim(texas_data)[1]
+
+ni = table(median_price_cl)
+fi = ni/N
+Ni = cumsum(ni)
+Fi = Ni/N
+
+distr_freq_median_price_cl = as.data.frame(cbind(ni,fi,Ni,Fi))
+distr_freq_median_price_cl
+```
+
+The `barplot` function is used to show the absolute frequency data of the `median_price` variable, divided into classes.
+
+```{r}
+barplot(distr_freq_median_price_cl$ni,
+        xlab = "Price classes ($)",
+        ylab = "Absolute frequency",
+        names.arg = rownames(distr_freq_median_price_cl),
+        col="steelblue")
+```
+
+The `ggplot2` library is used to create bar charts for the four types of frequency distribution (absolute, relative, cumulative absolute, and cumulative relative).
+
+```{r}
+ggplot(distr_freq_median_price_cl) +
+  geom_bar(aes(x=row.names(distr_freq_median_price_cl), y=ni), stat = "identity", fill = "steelblue") +
+  scale_x_discrete(limits=row.names(distr_freq_median_price_cl)) +
+  labs(title = "Distribution of median price",
+       x = "Price classes ($)",
+       y = "Absolute frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+ggplot(distr_freq_median_price_cl) +
+  geom_bar(aes(x=row.names(distr_freq_median_price_cl), y=fi), stat = "identity", fill = "steelblue") +
+  scale_x_discrete(limits=row.names(distr_freq_median_price_cl)) +
+  labs(title = "Distribution of median price",
+       x = "Price classes ($)",
+       y = "Relative frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+ggplot(distr_freq_median_price_cl) +
+  geom_bar(aes(x=row.names(distr_freq_median_price_cl), y=Ni), stat = "identity", fill = "steelblue") +
+  scale_x_discrete(limits=row.names(distr_freq_median_price_cl)) +
+  labs(title = "Distribution of median price",
+       x = "Price classes ($)",
+       y = "Cumulative absolute frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+ggplot(distr_freq_median_price_cl) +
+  geom_bar(aes(x=row.names(distr_freq_median_price_cl), y=Fi), stat = "identity", fill = "steelblue") +
+  scale_x_discrete(limits=row.names(distr_freq_median_price_cl)) +
+  labs(title = "Distribution of median price",
+       x = "Price classes ($)",
+       y = "Cumulative relative frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Lastly, the **Gini index** of heterogeneity is calculated:
+
+```{r}
+# Create a function to calculate Gini index
+gini.index <- function(x){
+  ni = table(x)
+  fi = ni/length(x)
+  fi2 = fi^2
+  J = length(table(x))
+  
+  gini = 1-sum(fi2)
+  gini.norm = gini/((J-1)/J)
+  
+  return(gini.norm)
+}
+```
+
+```{r}
+# Apply function to "median_price" variable, previously devided in classes
+gini.index(median_price_cl)
+```
+
+The **Gini index** of heterogeneity is a measure of inequality (or heterogeneity) in a distribution and takes a value between 0 and 1. Low values (close to 0) indicate that the distribution is fairly homogeneous, while high values (close to 1) indicate a more heterogeneous distribution. In the example of the medisan sale price of real estate, the calculated index of 0.95 indicates a high degree of heterogeneity in prices.
+
+## 5. Probability calculation
+
+In this section, classical probability, i.e., the ratio between the number of favorable cases and the total number of observations, is used to calculate the probability that, taking a random row from the original dataset, the following conditions will occur:
+
+-   the row refers to the city “Beaumont”
+
+-   the row refers to the month of July
+
+-   the row refers to the month of December 2012
+
+```{r}
+# Total number of rows in the dataset
+total_row = nrow(texas_data)
+
+# Probability that the city is "Beaumont"
+p_beaumont = sum(texas_data$city == "Beaumont") / total_row
+cat("P(Beaumont) =", round(p_beaumont,2), "\n")
+
+# Probability that the month is July
+p_july = sum(texas_data$month == 7) / total_row
+cat("P(July) =", round(p_july,2), "\n")
+
+# Probability that the month is Decemeber 2012
+p_december_2012 = sum(texas_data$year == 2012 & texas_data$month == 12) / total_row
+cat("P(December 2012) =", round(p_december_2012,2), "\n")
+
+```
+
+The probability calculation showed that the probability that a randomly selected row:
+
+-   refers to the city “Beaumont” is 0.25 (25%)
+
+-   refers to the month of July is 0.08 (8%)
+
+-   refers to the month of December 2012 is 0.02 (2%)
+
+## 6. Creation of new variables
+
+Two new columns are added to the dataset, created from other variables already present, indicating:
+
+-   the **mean price** of real estate
+
+-   the **effectiveness** of sales listings
+
+The mean price of properties sold is calculated as the total value of sales (`volume` variable) divided by the total number of sales (`sales` variable). The `volume` variable is multiplied by $10^6$ to obtain the dollar value.
+
+```{r}
+# Create "mean_price" column
+texas_data$mean_price = round(((texas_data$volume * 10^6) / texas_data$sales),0)
+head(texas_data)
+```
+
+The values of the calculated `mean_price` variable differ from the `median_price` variable because the mean is influenced by extreme values. A larger difference between `mean_price` and `median_price` indicates higher skewness in prices.
+
+A possible measure of the effectiveness of sales listings is given by the ratio between actual sales for each month (`sales` variable) and expected sales, determined by the variables `listings` (number of active listings) and `months_inventory` (number of months needed to sell all current listings). In particular, the ratio between the variables `listings` and `months_inventory` determines the expected number of sales in a single month.
+
+```{r}
+# Create "listing_effectiveness" column
+texas_data$listing_effectiveness = texas_data$sales / (texas_data$listings / texas_data$months_inventory)
+head(texas_data)
+```
+
+In this case, if the `listing_effectiveness` variable is \> 1, sales in the current month have been faster than expected; if it is \< 1, sales have been slower; while if it is close to 1, sales have been exactly as expected.
+
+## 7. Conditional analysis
+
+In this section, conditional statistical analyses are performed by creating statistical summaries based on three variables:
+
+-   `city`
+
+-   `year`
+
+-   `month`
+
+Specifically, the mean and standard deviation are calculated for the main numeric variables, and graphical representations of the results are shown.
+
+```{r}
+# Statistical summary by city
+summary_city = texas_data %>%
+  group_by(city) %>%
+  summarise(
+    sales_mean = mean(sales),
+    sales_sd = sd(sales),
+    volume_mean = mean(volume),
+    volume_sd = sd(volume),
+    median_price_mean = mean(median_price),
+    median_price_sd = sd(median_price),
+    listings_mean = mean(listings),
+    listings_sd = sd(listings)
+  ) %>% 
+  mutate(across(2:9, round, 2))
+
+summary_city
+```
+
+The following bar charts show the mean values of sales and median prices in the different cities.
+
+```{r}
+ggplot(summary_city, aes(x = city, y = sales_mean)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Mean value of sales by city", x = "City", y = "Sales")
+```
+
+```{r}
+ggplot(summary_city, aes(x = city, y = median_price_mean)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Mean value of median price by city", x = "City", y = "Price ($)") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+```{r}
+# Statistical summary by year
+summary_year = texas_data %>%
+  group_by(year) %>%
+  summarise(
+    sales_mean = mean(sales),
+    sales_sd = sd(sales),
+    volume_mean = mean(volume),
+    volume_sd = sd(volume),
+    median_price_mean = mean(median_price),
+    median_price_sd = sd(median_price),
+    listings_mean = mean(listings),
+    listings_sd = sd(listings)
+  ) %>% 
+  mutate(across(2:9, round, 2))
+
+summary_year
+```
+
+The following line charts show the trends in mean values of sales and median prices over the years.
+
+```{r}
+ggplot(summary_year, aes(x = year, y = sales_mean)) +
+  geom_line(color = "red") +
+  geom_point(color = "red") +
+  labs(title = "Trend in mean value of sales", x = "Year", y = "Sales")
+```
+
+```{r}
+ggplot(summary_year, aes(x = year, y = median_price_mean)) +
+  geom_line(color = "red") +
+  geom_point(color = "red") +
+  labs(title = "Trend in mean value of median price", x = "Year", y = "Price ($)") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+```{r}
+# Statistical summary by month
+summary_month = texas_data %>%
+  group_by(month) %>%
+  summarise(
+    sales_mean = mean(sales),
+    sales_sd = sd(sales),
+    volume_mean = mean(volume),
+    volume_sd = sd(volume),
+    median_price_mean = mean(median_price),
+    median_price_sd = sd(median_price),
+    listings_mean = mean(listings),
+    listings_sd = sd(listings)
+  ) %>% 
+  mutate(across(2:9, round, 2))
+
+summary_month
+```
+
+The following bar charts show the mean values of sales and median prices for each month.
+
+```{r}
+ggplot(summary_month, aes(x = factor(month), y = sales_mean)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  labs(title = "Mean value of sales by month", x = "Month", y = "Sales")
+```
+
+```{r}
+ggplot(summary_month, aes(x = factor(month), y = median_price_mean)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  labs(title = "Mean value of median price by month", x = "Month", y = "Price ($)") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+## 8. Visualizations with ggplot2
+
+In this section, the `ggplot2` library is used to create custom plots and highlight certain aspects emerging from the data.
+
+Box plots are created to compare the distribution of the median price between cities. This type of plot allows to view the median value, the interquartile range, the maximum and minimum values, and the outliers for the `median_price` variable in different cities. Violin plots have also been added to show the distribution of the value density. It can be clearly observed that median prices in "Wichita Falls" tend to be lower than in the other three cities, but they vary more widely. It can also be noted that Bryan-College Station has the highest prices, as indicated by both the median and the maximum values.
+
+```{r}
+ggplot(texas_data, aes(x = city, y = median_price)) +
+  geom_violin(show.legend = FALSE, fill='steelblue', color="black") +
+  geom_boxplot(width=0.5 , show.legend = FALSE, fill='steelblue', color="black") +
+  labs(title = "Distribution of median price by city",
+       x = "City", y = "Median price ($)") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+Bar charts are then created to compare total sales by month and city. In this case, the dataset is grouped by the variables `city` and `month`, and a summary is executed by calculating total sales for all years. In the first chart, a single x-axis represents the months, and the sided bars indicate the cities with different colors. In the second graph, the `facet_wrap` function of `ggplot2` is used to divide and group the bars relating to the four cities. In both cases, we can see that there are more sales in the spring and summer months in the cities of "Bryan-College Station" and "Tyler", while in "Beaumont" and especially "Wichita Falls", sales are more stable throughout the year.
+
+```{r}
+texas_data %>%
+  group_by(city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  ggplot(aes(x = factor(month), y = total_sales, fill = city)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Total sales by month and city",
+       x = "Month", y = "Total sales", fill = "City")
+```
+
+```{r}
+texas_data %>%
+  group_by(city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  ggplot(aes(x = factor(month), y = total_sales)) +
+  geom_bar(stat = "identity", position = "dodge", fill="forestgreen") +
+  facet_wrap(~ city, ncol = 4) +  # Splt plots by city
+  labs(title = "Total sales by month and city",
+       x = "Month", y = "Total sales")
+```
+
+The following bar chart shows more clearly the differences in total sales. "Wichita Falls" not only has the lowest annual variability, but also has fewer total sales than the other cities. "Tyler", on the other hand, is the city with the highest number of sales.
+
+```{r}
+texas_data %>%
+  group_by(city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  ggplot(aes(x = factor(city), y = total_sales)) +
+  geom_bar(stat = "identity", position = "stack", fill="forestgreen") +
+  labs(title = "Total sales by city",
+       x = "City", y = "Total sales")
+```
+
+By constructing a normalized bar chart representing the percentages of total sales for each month and city with stacked bars, the difference in sales between the various months can be seen more clearly, but the information on total sales in the different cities is lost.
+
+```{r}
+texas_data %>%
+  group_by(city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  group_by(month) %>%
+  mutate(perc_sales = total_sales / sum(total_sales)) %>%
+  ggplot(aes(x = factor(month), y = perc_sales, fill = city)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Total sales by month and city (normalized)",
+       x = "Month", y = "Percentage of total sales", fill = "City")
+```
+
+Using the `facet_wrap` function in `ggplot2`, the charts have also been divided here by the `year` variable, so as to show total sales by month and city in different years using sided bar charts, and normalized values using stacked bars.
+
+```{r}
+texas_data %>%
+  group_by(year, city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  ggplot(aes(x = factor(month), y = total_sales, fill = city)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ year) +  # Suddivisione dei grafici per anno
+  labs(title = "Total sales by month, city and year",
+       x = "Month", y = "Total sales", fill = "City") + 
+  theme(legend.position = c(0.85, 0.2))
+```
+
+```{r}
+texas_data %>%
+  group_by(year, city, month) %>%
+  summarise(total_sales = sum(sales)) %>%
+  group_by(month) %>%
+  mutate(perc_sales = total_sales / sum(total_sales)) %>%
+  ggplot(aes(x = factor(month), y = perc_sales, fill = city)) +
+  geom_bar(stat = "identity", position = "fill") +
+  facet_wrap(~ year) +  # Suddivisione dei grafici per anno
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Total sales by month, city and year (normalized)",
+       x = "Month", y = "Percentage of total sales", fill = "City") + 
+  theme(legend.position = c(0.85, 0.2))
+```
+
+Box plots are then created to compare the distribution of total sales value between different cities and years. The graph shows that sales value in "Wichita Falls" remains low over the years, while it grows significantly in "Bryan-College Station" and "Tyler".
+
+```{r}
+ggplot(texas_data, aes(x = city, y = volume, fill = as.factor(year))) +
+  geom_boxplot() +
+  labs(title = "Distribution of total sales value by city",
+       x = "City", y = "Sales volume (millions $)", fill = "Year")
+```
+
+Lastly, line charts are created to visualize sales trends over time. For this task, a new variable called `date` is created, which combines the `year` and `month` variables and indicates the reference date.
+
+```{r}
+# Create a "date" varable including month and year
+texas_data = texas_data %>%
+  mutate(date = as.Date(paste(year, month, "01", sep = "-")))
+```
+
+The following two charts show the trend in total sales and their total value for all cities.
+
+```{r}
+texas_data %>%
+  group_by(date) %>%
+  summarise(total_sales = sum(sales)) %>%
+  ggplot(aes(x = date, y = total_sales)) +
+  geom_line(color = "red") +
+  geom_point(color = "red") +
+  labs(title = "Trend in total sales",
+       x = "Date", y = "Total sales") + 
+  scale_x_date(date_breaks = "years", date_labels = "%Y")
+```
+
+```{r}
+texas_data %>%
+  group_by(date) %>%
+  summarise(total_volume = sum(volume)) %>%
+  ggplot(aes(x = date, y = total_volume)) +
+  geom_line(color = "limegreen") +
+  geom_point(color = "limegreen") +
+  labs(title = "Trend in total sales value",
+       x = "Date", y = "Sales value (millions $)") + 
+  scale_x_date(date_breaks = "years", date_labels = "%Y")
+```
+
+The following chart allows you to compare sales trends in the different cities.
+
+```{r}
+ggplot(texas_data, aes(x = date, y = sales, color = city, group = city)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Trend in sales by city",
+       x = "Date", y = "Sales", color = "City") + 
+  scale_x_date(date_breaks = "years", date_labels = "%Y") + 
+  guides(color = guide_legend(position = "inside")) +
+  theme(legend.position.inside = c(0.2, 0.8), 
+        legend.background = element_rect(fill = "#FFFFFF85", colour = NA))
+```
+
+While the previous chart shows sales fluctuations over months and years, it is difficult to distinguish trends between different cities. This is made easier by using the `geom_smooth` function in `ggplot2`, which applies a smoothing function to the data series for different cities, producing a trend line and a confidence interval.
+
+```{r}
+ggplot(texas_data, aes(x = date, y = sales, color = city, group = city)) +
+  geom_point() +
+  geom_smooth(aes(color = city, fill = city)) +
+  labs(title = "Trend in sales by city",
+       x = "Date", y = "Sales", color = "City", fill = "City") + 
+  scale_x_date(date_breaks = "years", date_labels = "%Y") + 
+  guides(color = guide_legend(position = "inside"),
+         fill = guide_legend(position = "inside")) +
+  theme(legend.position.inside = c(0.15, 0.8), 
+        legend.background = element_rect(fill = "#FFFFFF85", colour = NA))
+```
+
+The chart shows that sales in the city of "Tyler" are higher and have a marked increasing trend over time. In contrast, sales in the city of "Wichita Falls" are lower and show a stable trend. The cities of "Beaumont" and "Bryan-College Station" have intermediate values that largely overlap, with slightly increasing trends.
+
+By creating the same chart for median prices, a slightly increasing trend can be observed in all cities, with the exception of "Beaumont". As noted before, prices in "Bryan-College Station" are the highest.
+
+```{r}
+ggplot(texas_data, aes(x = date, y = median_price, color = city, group = city)) +
+  geom_point() +
+  geom_smooth(aes(color = city, fill = city)) +
+  labs(title = "Trend in median prices by city",
+       x = "Date", y = "Median prices ($)", color = "City", fill = "City") + 
+  scale_x_date(date_breaks = "years", date_labels = "%Y") +
+  scale_y_continuous(labels = scales::comma) +
+  guides(color = guide_legend(position = "inside"),
+         fill = guide_legend(position = "inside")) +
+  theme(legend.position.inside = c(0.15, 0.8), 
+        legend.background = element_rect(fill = "#FFFFFF85", colour = NA))
+```
+
+## 9. Conclusions
+
+This Exploratory Data Analysis of the Texas real estate market revealed certain characteristics and trends related to real estate sales in four different cities.
+
+As indicated by the Gini index of heterogeneity, calculated for the median sale price of properties, equal to 0.95, there is a high degree of heterogeneity in prices. In particular, looking at the conditioned analyses for the different cities, this seems to be due to the fact that prices in the city of "Wichita Falls" tend to be lower relative to the other three cities. It is interesting to note that prices in "Bryan-College Station" are the highest, while sales in the same city are lower than in "Tyler". This could suggest an imbalance in prices in "Bryan-College Station", the causes of which should be investigated further by analyzing other variables.
+
+Another trait that emerged from this analysis is seasonality in sales. This is most evident in the cities of "Bryan-College Station" and "Tyler", which have higher sales in the spring and summer months, while the cities of "Beaumont" and especially "Wichita Falls" have more stable sales throughout the year. The causes of this seasonality could be linked to the greater touristic appeal of "Bryan-College Station" and "Tyler", but further data would be needed to confirm this hypothesis. From this point of view, it is also interesting to note, when comparing the cities of “Beaumont” and “Bryan-College Station” using bar charts showing sales by month and line charts showing trends over time, that sales in the two cities are always at similar levels in the fall and winter months, while in the spring and summer months, sales in “Bryan-College Station” are much higher.
+
+Finally, it should be noted that there has been a general increasing trend in sales over the years in all the cities analyzed, with the exception of "Wichita Falls", where sales have remained essentially constant. This suggests that "Wichita Falls" may be generally unattractive, not exclusively in terms of tourism.
