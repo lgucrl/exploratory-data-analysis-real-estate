@@ -1,6 +1,6 @@
 # Exploratory Data Analysis of the Texas Real Estate Market
 
-This project carries out an exploratory data analysis (EDA) of the Texas residential real estate market using **R** (including **dplyr**, **ggplot2**, and **moments** libraries). The goal is to apply descriptive statistics and data-visualization techniques to understand how sales activity and prices evolve across cities, months, and years. The full analysis is contained in the R Markdown document and the HTML output can be visulized in this [Github Page](https://lgucrl.github.io/exploratory-data-analysis-real-estate/).
+This project carries out an exploratory data analysis (EDA) of the Texas residential real estate market using **R** (including **dplyr**, **ggplot2**, and **moments** libraries). The goal is to apply descriptive statistics and data-visualization techniques to understand how sales activity and prices evolve across cities, months, and years. The full analysis is contained in the [R Markdown document](https://github.com/lgucrl/exploratory-data-analysis-real-estate/blob/main/real_estate_EDA.Rmd) and the HTML output can be visulized in this [Github Page](https://lgucrl.github.io/exploratory-data-analysis-real-estate/).
 
 
 
